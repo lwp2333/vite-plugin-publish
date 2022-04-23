@@ -1,7 +1,6 @@
 import { Plugin, ResolvedConfig, normalizePath } from 'vite'
 import ftp from 'ftp'
 import oss from 'ali-oss'
-import chalk from 'chalk'
 import path from 'path'
 import glob from 'glob'
 import { URL } from 'url'
@@ -49,6 +48,8 @@ const vitePluginPublish = (options: Options): Plugin | undefined => {
         }, 1600)
       )
       const ora = await import('ora').then(res => res.default)
+      const chalk = await import('chalk').then(res => res.default)
+
       const spinner = ora(`${chalk.cyan('Checking the configuration...')} `)
       // spinner.prefixText = 'vite-plugin-publish:'
       spinner.start()

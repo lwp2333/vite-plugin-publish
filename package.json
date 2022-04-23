@@ -1,11 +1,13 @@
 {
   "name": "vite-plugin-publish",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "help the front end publish quickly",
   "keywords": [
     "vite",
     "vite-plugin",
-    "publish"
+    "publish",
+    "oss",
+    "ftp"
   ],
   "main": "dist/index.cjs",
   "module": "dist/index.mjs",
