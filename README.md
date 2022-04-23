@@ -1,8 +1,4 @@
-#
-
-# vite-plugin-publish
-
-![vite-plugin-publish](https://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/898bdf23671c4a498694e5996f312a42~tplv-k3u1fbpfcp-zoom-1.image)
+![vite-plugin-publish](https://cdn200.oss-cn-hangzhou.aliyuncs.com/md/vite-plugin-publish.png)
 
 Use `ftp` & `oss` to publish resources
 
@@ -37,6 +33,7 @@ export default () => {
         ftp: {
           host: 'xxxxx',
           port: 21,
+          websiteDir: 'm.lwp.fun',
           username: 'xxxx',
           password: 'xxxxx',
         },
