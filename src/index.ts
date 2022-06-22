@@ -25,12 +25,29 @@ interface Options {
   oss?: OssOptions
 }
 
-const vitePluginPublish = (options: Options): Plugin | undefined => {
-  if (!options.enable) {
-    return
+const getEnvConfig = (env: Record<string, any>): Options => {
+  return {
+    enable: env['VITE_PUBLISH_enable'],
+    ftp: {
+      host: env['VITE_PUBLISH_FTP_host'],
+      port: env['VITE_PUBLISH_FTP_port'],
+      websiteDir: env['VITE_PUBLISH_FTP_websiteDir'],
+      user: env['VITE_PUBLISH_FTP_user'],
+      password: env['VITE_PUBLISH_FTP_password'],
+    },
+    oss: {
+      accessKeyId: env['VITE_PUBLISH_OSS_accessKeyId'],
+      accessKeySecret: env['VITE_PUBLISH_OSS_accessKeySecret'],
+      region: env['VITE_PUBLISH_OSS_region'],
+      bucket: env['VITE_PUBLISH_OSS_bucket'],
+    },
   }
+}
+
+const vitePluginPublish = (options?: Options): Plugin => {
   let base = '/'
   let outDir = 'dist'
+  let mergeOptions: Options
   return {
     name: 'vite-plugin-publish',
     apply: 'build',
@@ -38,40 +55,36 @@ const vitePluginPublish = (options: Options): Plugin | undefined => {
     configResolved(config: ResolvedConfig) {
       base = config.base
       outDir = config.build.outDir
+      mergeOptions = options || getEnvConfig(config.env)
     },
     async closeBundle() {
-      const { ftp: ftpConfig, oss: ossConfig } = options
-      // 延迟此plugin执行
+      // disable
+      if (!mergeOptions.enable) {
+        return
+      }
+      const ora = await import('ora').then(res => res.default)
+      const chalk = await import('chalk').then(res => res.default)
+      const { ftp: ftpConfig, oss: ossConfig } = mergeOptions
+      // delay 1800ms
       await new Promise(resolve =>
         setTimeout(() => {
           resolve(true)
-        }, 1600)
+        }, 1800)
       )
-      const ora = await import('ora').then(res => res.default)
-      const chalk = await import('chalk').then(res => res.default)
-
+      console.log(chalk.cyan(`✨ [vite-plugin-publish]`))
       const spinner = ora(`${chalk.cyan('Checking the configuration...')} `)
-      // spinner.prefixText = 'vite-plugin-publish:'
+      spinner.prefixText = ''
       spinner.start()
+      // check config
       const ftpConfigValid = await new Promise<boolean>(resolve => {
         const { host, port, user, password } = ftpConfig
-        if (host && port && user && password) {
-          resolve(true)
-        }
-        resolve(false)
+        host && port && user && password ? resolve(true) : resolve(false)
       })
-
-      const ossConfigValid = await new Promise(resolve => {
-        if (
-          ossConfig &&
-          (!ossConfig.accessKeyId || !ossConfig.accessKeySecret)
-        ) {
-          resolve(false)
-        } else {
-          resolve(true)
-        }
+      const ossConfigValid = await new Promise<Boolean>(resolve => {
+        ossConfig && (!ossConfig.accessKeyId || !ossConfig.accessKeySecret)
+          ? resolve(false)
+          : resolve(true)
       })
-
       if (!ftpConfigValid || !ossConfigValid) {
         spinner.fail(
           `${chalk.yellow(
@@ -85,11 +98,8 @@ const vitePluginPublish = (options: Options): Plugin | undefined => {
       let ossCilent: oss | undefined
       try {
         const outDirPath = path.resolve(normalizePath(outDir))
-        const { pathname: ossDirPath, origin: ossOrigin } = new URL(base)
-        spinner.info(`outDirPath: ${outDirPath}`)
-        spinner.info(`ossDirPath: ${ossDirPath}`)
-        spinner.info(`ossOrigin: ${ossOrigin}`)
-        spinner.info(`${chalk.cyan('Waiting ftp client connected...')} `)
+        const { pathname: ossDirPath } = new URL(base)
+        spinner.info('Waiting ftp client connected...')
 
         await new Promise(resolve => {
           ftpClient.on('ready', () => {
@@ -115,65 +125,53 @@ const vitePluginPublish = (options: Options): Plugin | undefined => {
           nodir: true,
           dot: true,
         })
+        // oss run
+        if (ossConfigValid) {
+          try {
+            ossCilent = new oss(ossConfig!)
+            spinner.info('all files start upload to oss...')
 
-        if (ossConfig) {
-          ossCilent = new oss(ossConfig)
-          spinner.info('all files start upload to oss...')
-          for (const fullfilePath of allFiles) {
-            const ossUrl =
-              base.replace(/\/$/, '') + fullfilePath.replace(outDirPath, '')
-            const ossKey =
-              ossDirPath.replace(/\/$/, '') +
-              fullfilePath.replace(outDirPath, '')
-            await ossCilent.put(ossKey, fullfilePath)
-            spinner.info(
-              `${chalk.green(
-                `${fullfilePath.replace(outDirPath, '')} => ${ossUrl}`
-              )}`
-            )
+            for (const fullfilePath of allFiles) {
+              const ossUrl =
+                base.replace(/\/$/, '') + fullfilePath.replace(outDirPath, '')
+              const ossKey =
+                ossDirPath.replace(/\/$/, '') +
+                fullfilePath.replace(outDirPath, '')
+              await ossCilent.put(ossKey, fullfilePath)
+              spinner.info(
+                `${chalk.green(
+                  `${fullfilePath.replace(outDirPath, '')} => ${ossUrl}`
+                )}`
+              )
+            }
+          } catch (error) {
+            console.log(error)
           }
-          spinner.info('*.html files start upload to ftpServer...')
-          for (const fullfilePath of onlyHtmlFiles) {
-            await new Promise(resolve => {
-              const serverPath =
-                ftpConfig.websiteDir + fullfilePath.replace(outDirPath, '')
+        }
+        // ftp run
+        const ftpWillUploadFiles = ossConfigValid ? onlyHtmlFiles : allFiles
+        ossConfigValid
+          ? spinner.info('*.html files start upload to ftpServer...')
+          : spinner.info('all files start upload to ftpServer...')
 
-              ftpClient.put(fullfilePath, serverPath, err => {
-                if (err) {
-                  console.log(err)
-                } else {
-                  spinner.info(
-                    `${chalk.green(
-                      `${fullfilePath.replace(outDirPath, '')} => ${serverPath}`
-                    )}`
-                  )
-                  resolve(true)
-                }
-              })
+        for (const fullfilePath of ftpWillUploadFiles) {
+          await new Promise(resolve => {
+            const serverPath =
+              ftpConfig.websiteDir + fullfilePath.replace(outDirPath, '')
+
+            ftpClient.put(fullfilePath, serverPath, err => {
+              if (err) {
+                console.log(err)
+              } else {
+                spinner.info(
+                  `${chalk.green(
+                    `${fullfilePath.replace(outDirPath, '')} => ${serverPath}`
+                  )}`
+                )
+                resolve(true)
+              }
             })
-          }
-        } else {
-          //ftp  upload all
-          spinner.info('all files start upload to ftpServer...')
-          for (const fullfilePath of allFiles) {
-            await new Promise(resolve => {
-              const serverPath =
-                ftpConfig.websiteDir + fullfilePath.replace(outDirPath, '')
-
-              ftpClient.put(fullfilePath, serverPath, err => {
-                if (err) {
-                  console.log(err)
-                } else {
-                  spinner.info(
-                    `${chalk.green(
-                      `${fullfilePath.replace(outDirPath, '')} => ${serverPath}`
-                    )}`
-                  )
-                  resolve(true)
-                }
-              })
-            })
-          }
+          })
         }
         ftpClient.end()
         spinner.succeed('Publish success')
