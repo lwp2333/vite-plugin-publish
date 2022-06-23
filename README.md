@@ -62,7 +62,7 @@ export default () => {
 | oss.accessKeyId     | `string`  | `VITE_PUBLISH_OSS_accessKeyId`     |
 | oss.accessKeySecret | `string`  | `VITE_PUBLISH_OSS_accessKeySecret` |
 | oss.region          | `string`  | `VITE_PUBLISH_OSS_region`          |
-| oss.region          | `string`  | `VITE_PUBLISH_OSS_bucket`          |
+| oss.bucket          | `string`  | `VITE_PUBLISH_OSS_bucket`          |
 
 ## yarn build
 
