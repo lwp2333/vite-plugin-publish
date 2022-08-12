@@ -1,6 +1,6 @@
 {
   "name": "vite-plugin-publish",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "help the front end publish quickly",
   "keywords": [
     "vite",
